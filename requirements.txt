@@ -6,4 +6,4 @@ scikit-learn
 alpha_vantage
 tensorflow-cpu==2.13.0
 keras
-math
+
