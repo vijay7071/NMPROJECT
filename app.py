@@ -1,5 +1,5 @@
 import streamlit as st
-import numpy as np 
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from alpha_vantage.timeseries import TimeSeries
@@ -12,7 +12,6 @@ import math
 
 # Streamlit configuration
 st.set_page_config(layout="wide", page_title="Stock Price Predictor")
-
 st.title("📈 Stock Price Prediction App with CNN-BiLSTM-Attention")
 
 # Input for API Key and Ticker
@@ -42,6 +41,7 @@ if st.button("🔍 Predict"):
 
         try:
             data, _ = ts.get_daily(symbol=ticker, outputsize='full')
+            st.write(f"✅ Retrieved {ticker} data of shape: {data.shape}")
             data = data[['4. close', '5. volume']]
             data.rename(columns={'4. close': 'Close', '5. volume': 'Volume'}, inplace=True)
             data.index = pd.to_datetime(data.index)
@@ -94,6 +94,7 @@ if st.button("🔍 Predict"):
 
         early_stop = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
         reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5)
+
         model.fit(x_train, y_train, epochs=50, batch_size=32, validation_split=0.1,
                   callbacks=[early_stop, reduce_lr], verbose=0)
 
@@ -105,21 +106,29 @@ if st.button("🔍 Predict"):
         x_test, y_test = np.array(x_test), np.array(y_test)
 
         predictions = model.predict(x_test)
+
         predictions_rescaled = scaler.inverse_transform(
-            np.hstack((predictions, np.zeros((predictions.shape[0], scaled_data.shape[1] - 1)))
-        ))[:, 0]
+            np.hstack((predictions, np.zeros((predictions.shape[0], scaled_data.shape[1] - 1))))
+        )[:, 0]
 
-        rmse = math.sqrt(mean_squared_error(
-            scaler.inverse_transform(np.hstack((y_test.reshape(-1, 1), np.zeros((len(y_test), scaled_data.shape[1] - 1)))) )[:, 0],
-            predictions_rescaled
-        ))
+        actual_prices = scaler.inverse_transform(
+            np.hstack((y_test.reshape(-1, 1), np.zeros((len(y_test), scaled_data.shape[1] - 1))))
+        )[:, 0]
 
+        rmse = math.sqrt(mean_squared_error(actual_prices, predictions_rescaled))
         st.success(f"✅ {ticker} RMSE on test set: {rmse:.2f}")
 
         valid = data.iloc[train_len:].copy().iloc[60:]
-        valid['Predictions'] = predictions_rescaled[:len(valid)]
+        if len(predictions_rescaled) < len(valid):
+            st.warning("⚠️ Predictions shorter than actual data. Trimming 'valid' to match.")
+            valid = valid.iloc[:len(predictions_rescaled)]
+        valid['Predictions'] = predictions_rescaled
+
+        st.write("📊 valid shape:", valid.shape)
+        st.write("📊 predictions_rescaled shape:", predictions_rescaled.shape)
 
         # Plot actual vs predicted
+        st.write("🖼️ Plotting Historical Prediction...")
         fig1, ax1 = plt.subplots(figsize=(12, 5))
         ax1.plot(data['Close'], label="Training Data")
         ax1.plot(valid['Close'], label="Actual Test Price", color='blue')
@@ -130,6 +139,7 @@ if st.button("🔍 Predict"):
         ax1.legend()
         ax1.grid()
         st.pyplot(fig1)
+        st.write("✅ Historical plot rendered.")
 
         # Future forecasting
         future_days = 30
@@ -141,6 +151,8 @@ if st.button("🔍 Predict"):
             future_predictions.append(pred)
             next_input = np.append(last_60_days[:, 1:, :], [[[pred] + [0] * (scaled_data.shape[1] - 1)]], axis=1)
             last_60_days = next_input
+
+        st.write("🧮 Future prediction shape before inverse transform:", np.array(future_predictions).shape)
 
         future_predictions_rescaled = scaler.inverse_transform(
             np.hstack((np.array(future_predictions).reshape(-1, 1), np.zeros((future_days, scaled_data.shape[1] - 1))))
