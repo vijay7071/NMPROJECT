@@ -15,7 +15,7 @@ st.set_page_config(layout="wide", page_title="Stock Price Predictor")
 st.title("📈 Stock Price Prediction App with CNN-BiLSTM-Attention")
 
 # Input for API Key and Ticker
-api_key = st.text_input("🔑 Enter your Alpha Vantage API Key:", value="K4B0QZ0DAY135ZQR", type="password")
+api_key = st.text_input("🔑 Enter your Alpha Vantage API Key:", value="", type="password")
 tickers = st.text_input("📊 Enter stock ticker symbols (comma-separated, e.g., AAPL, TSLA):").upper().split(',')
 
 if st.button("🔍 Predict"):
